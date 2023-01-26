@@ -1,6 +1,24 @@
 # lasse-py
 Python code used at LASSE / UFPA projects concerning signal processing, machine learning, digital communications, etc.
 
+## Installation
+
+Make sure your Python environment has all dependencies using:
+
+conda install --file requirements.txt
+
+If you do not have an environment yet, it is a good idea to follow the hints at https://github.com/lasseufpa/python_template and install one.
+
+PS: To update the requirements.txt file we use
+
+pip install pipreqs
+
+And from the project folder:
+
+pipreqs .
+
+(which will parse the files and save a new requirements.txt. You may move it if the file already exists)
+
 ## Packages we adopt
 
 https://github.com/librosa/librosa - audio and music analysis
