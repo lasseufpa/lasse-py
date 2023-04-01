@@ -3,23 +3,28 @@ import numpy as np
 import pylab as pl
 
 
-def ak_quantizer(x, delta, b):
+def ak_quantizer(input, delta, b):
     """
     Assumes the quantizer allocates 2^(b-1) levels to negative output values,
     one levels to '0' and 2^(b-1) - 1 to positive values.
     """
-    x_q = []
-    x_i = []
+    x = input.ravel()  # create a one-dimensional view of the input array
+    # print(x.shape)
+    x_q = np.zeros(x.shape, dtype=float)
+    x_i = np.zeros(x.shape, dtype=int)
     for i in range(len(x)):
         auxi = x[i] / delta  # Quantizer levels
-        auxi = round(auxi)  # get the nearest integer
-        if auxi > (2 ** (b - 1)) - 1:
-            auxi = (2 ** (b - 1)) - 1  # Obligate a maximun value
+        # print(auxi.shape)
+        auxi = np.round(auxi)  # get the nearest integer
+        if auxi > ((2 ** (b - 1)) - 1):
+            auxi = (2 ** (b - 1)) - 1  # force a maximum value
         elif auxi < -(2 ** (b - 1)):
-            auxi = -(2 ** (b - 1))  # Obligate a minimun value
-        auxq = auxi * delta  # get the docoded output already quantized
-        x_q.append(auxq)
-        x_i.append(auxi)
+            auxi = -(2 ** (b - 1))  # force a minimum value
+        auxq = auxi * delta  # get the decoded output already quantized
+        x_q[i] = auxq
+        x_i[i] = auxi
+    x_q = x_q.reshape(input.shape)  # back to the dimension of input array
+    x_i = x_i.reshape(input.shape)
     return x_i, x_q
 
 
@@ -65,7 +70,7 @@ def bitarray_to_int(bitarray):
 
 
 class UniformQuantizer:
-    def __init__(self, num_bits, xmin, xmax, forceZeroLevel=True):
+    def __init__(self, num_bits, xmin, xmax, forceZeroLevel=False):
         self.num_bits = num_bits
         M = 2 ** num_bits  # number of quantization levels
 
@@ -77,6 +82,7 @@ class UniformQuantizer:
             xmin + (self.delta / 2.0) + np.arange(M) * self.delta
         )  # output values
         if forceZeroLevel:
+            raise Exception("forceZeroLevel == True not correctly implemented yet")
             # np.nonzero plays the role of Matlab's find
             isZeroRepresented = np.nonzero(self.quantizerLevels == 0)  # is 0 there?
             # isZeroRepresented is a tuple, check its first (and only) element
