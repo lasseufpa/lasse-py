@@ -46,7 +46,7 @@ def compact_bytes(input_array, num_bits) -> np.ndarray:
         bitorder="little",  # Turn the "squished" data into a new array and return it
     )
 
-    return np.array(output_array)
+    return np.array(output_array)  # needed to cast to np.array to pass pyright
 
 
 def decompact_bytes(input_array, num_bits):
