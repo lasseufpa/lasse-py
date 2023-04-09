@@ -4,7 +4,6 @@ Analyze a signal in frequency domain.
 
 import matplotlib.pyplot as plt
 import numpy as np
-import scipy
 from scipy.signal import welch
 
 
@@ -43,7 +42,9 @@ def spectrum_magnitude(x, Fs, show_plot=False, remove_mean=False):
     corresponding to the largest magnitude and its frequency in Hz.
     """
     if remove_mean:
-        x -= np.mean(x)  # remove the mean, which may be a too strong peak
+        # remove the mean, which may be a strong peak that hides
+        # the other parts
+        x -= np.mean(x)
 
     # Calculate the amplitude
     X = np.fft.fft(x)  # calculate Fourier transform
