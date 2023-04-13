@@ -73,7 +73,7 @@ def decompact_bytes(input_array, num_bits) -> np.ndarray:
 
     # For every index which should be on the decompressed array
     # separate the bits which represent that number, pack them back
-    # into a bit and then put the number into a new array
+    # into a byte ( uint8 ) and then put the number into a new array
     for i in range(output_arr_len):
         tmp_array = bit_array[num_bits * i : num_bits * (i + 1)]
         value = np.packbits(tmp_array, bitorder="little")
