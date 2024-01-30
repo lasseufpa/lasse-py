@@ -47,6 +47,7 @@ def xcorr(x, y=None, max_lag=-1, scaling_option='none'):
             # Normalize by dividing by the number of samples of longest vector
             return Rxy / N, lags
         elif scaling_option == 'unbiased':
+            # An estimator is called unbiased if the bias is zero (see A.21.1 Probabilistic estimation theory in textbook)
             denominator = N - np.abs(lags)
             return Rxy / denominator, lags
         elif scaling_option == 'normalized' or scaling_option == 'coeff':
