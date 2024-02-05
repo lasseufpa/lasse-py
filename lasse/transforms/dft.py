@@ -26,10 +26,10 @@ def ak_fftmtx(N, option=1):
     if option == 1:  # orthonormal (also called unitary)
         Ah = Ah / np.sqrt(N)
         A = np.conj(Ah)
-    if option == 2:  # read X(k) in Volts in case x(n) is in Volts
+    elif option == 2:  # read X(k) in Volts in case x(n) is in Volts
         A = np.conj(Ah)
         Ah = Ah / N
-    if option == 3:  # as in Matlab/Octave: Ah = Ah
+    elif option == 3:  # as in Matlab/Octave: Ah = Ah
         A = np.conj(Ah) / N
     else:
         raise Exception("Invalid option value: " + str(option))
