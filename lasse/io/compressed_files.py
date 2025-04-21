@@ -1,40 +1,73 @@
 """
-Assumption: programming languages support writing bytes (8 bits).
-Here we need pack these bytes in a bit stream such that the file
-have minimum size.
-The functions in the file are meant to facilitate dealing with int datatypes which require less than
-1 byte (8 bits) to be represented. compact_bytes "squishes" the data together ignoring the zeros on the most
-significant bits, decompact_bytes undoes this process, introducing zeros to such spaces.
+The methods allow to write binary files using less than 8 bits per sample.
+The motivation is that programming languages support reading/writing bytes (8 bits)
+and its multiples, while here we support b < 8 bits per sample.
+Details:
+We pack N samples of b bits/sample into bytes in a bit stream such that the
+output file has a minimum size and a 1-byte header. In other words, the output
+file uses a single byte as "header". The header indicates the number H of b-bits
+samples that will be used to complete the trailing byte in case N * b is not a
+multiple of 8 bits. These trailing bits are set as zeros. The endianess is "little".
+The method compact_bytes "squishes" the data together ignoring the zeros on the most
+significant bits, while decompact_bytes undoes this process, introducing bits "zeros"
+to use b bits per sample.
+
+For instance, an input array with N = 8 samples:
+    x = np.array([3, 2, 1, 0, 3, 2, 1, 3], dtype=np.int64)
+and num_bits=2 bits per sample, is written as a file with (N * b + 8) = (8 * 2 + 8) =
+24 bits = 3 bytes. These 3 bytes are:
+00 1b db in hexa, which corresponds, in bits, to 0000 0000  0001 1011  1101 1011
+where the first byte is H=00 hexa because the 8 samples of 2 bits each exactly fits
+2 bytes, so H=0 samples of b bits each are needed to complete an integer number of bytes.
+Due to the assumed little endianness the mapping of integer values and bits are:
+0000 0000 | 00 01 10 11 | 11 01 10 11
+header=0  |  0  1  2  3 |  3  1  2  3
+can be represented with 2 bits per sample (that support the range [0, 3])
+
+As another example, consider the input with N=4 samples
+    x = np.array([7, 1, 2, 3], dtype=np.int64)
+    num_bits = 3
+is also written as a file with the 3 bytes (4 * 3 + 8 = 20 bits + 4 trailing bits to
+complete a byte). These 3 bytes are:
+01 8f 06 in hexa, which corresponds, in bits, to 0000 0001  1000 1111  0000 0110
+where the first byte is H=01 hexa, which corresponds to H=1 samples of 3-bits.
+Note that we need 4 trailing bits in this case, but H=1 sample. We would have H=2 only
+when using 6 or 7 trailing bits given that H is a floor value for the number of b-bits
+sampled. In this example, due to the assumed little endianness the mapping of
+integer values and bits are:
+0000 0001 |  10                001 111 | 0 000 011  0
+header=1  |  suffix of 010=2     1   7 |         3  prefix of 010=2
+
+@authors Eduardo Filho, 2023
+Reviewed by Aldebaro, 2025
 """
 
 import numpy as np
 
-# TODO: Since these functions are meant to be use didactically, a couple of "features" could be added:
-# Error messages for when inputs are invalid, such as size(a)>=8 or num_bits >=8
-# Or warnings which indicate the right number of bits for encoding certain range
-
-
+'''
+Encode input_array x into a bit array using num_bits per sample, where
+num_bits should be an integer smaller than 8.
+'''
 def compact_bytes(input_array, num_bits) -> np.ndarray:
     if num_bits >= 8:
         raise ValueError("This function is meant to work with less than 8 bits!")
 
-    # TODO check whether input values are within the allowed dynamic range (0 to 255?)
     min = np.min(input_array)
     max = np.max(input_array)
-    if min < 0 or max > 255:
-        print("WARNING ", min, max)
+    if min < 0 or max > 2**num_bits:
+        max_allowed = 2**num_bits-1
+        raise ValueError("The input must be in the range [0, " +
+                         str(max_allowed) + "] but I found min, max =", min, max)
 
     if not np.issubdtype(input_array.dtype, np.integer):
         print("Found values: ", input_array)
         raise ValueError("Input must be integer!")
 
-    # The logic beguins here
-
     input_arr_len = len(input_array)
     bit_array = np.array([], dtype=np.uint8)
 
     # For every value in the array, open it into a bit_array
-    # remove the unecessary space then save the bits into a new array
+    # remove the unnecessary space then save the bits into a new array
     for i in range(input_arr_len):
         tmp = np.uint8(input_array[i])
         tmp_array = np.unpackbits(tmp, bitorder="little")[0:num_bits]
@@ -48,17 +81,21 @@ def compact_bytes(input_array, num_bits) -> np.ndarray:
     estimated_decompressed_array_len = (len(output_array) * 8) // num_bits
     num_discrepant_zeros = estimated_decompressed_array_len - input_arr_len
 
+    # For debugging
+    print("num_discrepant_zeros =", num_discrepant_zeros)
+
     return_array = np.insert(output_array, obj=0, values=num_discrepant_zeros)
 
     return np.array(return_array)  # Needed to cast to np.array to pass pyright
 
-
+'''
+Decode input_array into a uint8 array using num_bits per sample, where
+num_bits should be an integer smaller than 8.
+'''
 def decompact_bytes(input_array, num_bits) -> np.ndarray:
     if num_bits >= 8:
         raise ValueError("This function is meant to work with less than 8 bits!")
-
-    # The logic beguins here
-
+    
     # Separate the data from the "header" containing the number of discrepant zeros
     num_discrepant_zeros = input_array[0]
     data_array = input_array[1:]
@@ -83,95 +120,44 @@ def decompact_bytes(input_array, num_bits) -> np.ndarray:
     return output_array
 
 
-def compact_bytes_old(input_array, num_bits) -> np.ndarray:
-    if num_bits >= 8:
-        raise ValueError("This function is meant to work with less than 8 bits!")
-
-    # TODO check whether input values are within the allowed dynamic range (0 to 255?)
-    min = np.min(input_array)
-    max = np.max(input_array)
-    if min < 0 or max > 255:
-        print("WARNING ", min, max)
-
-    if not np.issubdtype(input_array.dtype, np.integer):
-        print("Found values: ", input_array)
-        raise ValueError("Input must be integer!")
-
-    input_arr_len = len(input_array)  # Lenght of the input
-    bit_array = np.array(
-        [], dtype=np.uint8  # Inilization of array to hold the unpacked bits
-    )
-    for i in range(input_arr_len):
-        tmp_array = np.unpackbits(np.uint8(input_array[i]), bitorder="little")[
-            0:num_bits  # unpack byte and discard the most significant bits since they're not necessary
-        ]
-        bit_array = np.concatenate(
-            (bit_array, tmp_array),
-            dtype=np.uint8,  # "Squish" together all the relevant data into a single array
-        )
-
-    output_array = np.packbits(
-        bit_array,
-        bitorder="little",  # Turn the "squished" data into a new array and return it
-    )
-
-    return np.array(output_array)  # needed to cast to np.array to pass pyright
-
-
-def decompact_bytes_old(input_array, num_bits) -> np.ndarray:
-    if num_bits >= 8:
-        raise ValueError("This function is meant to work with less than 8 bits!")
-
-    output_arr_len = (
-        len(input_array)
-        * 8  # Figure out how many numbers were on the original array, which should be the uncompressed output
-    ) // num_bits
-    bit_array = np.unpackbits(input_array, bitorder="little")  # Unpack "Squished" data
-    output_array = np.array(
-        [], dtype=np.uint8  # Initialize array to hold the output values
-    )
-    padding = np.zeros(
-        8 - num_bits,
-        dtype=np.uint8,  # Number of zeros present in each value before the compression
-    )
-    for i in range(output_arr_len):
-        tmp_array = bit_array[
-            num_bits * i : num_bits * (i + 1)  # Take the data of a single number
-        ]
-        padded_tmp_arr = np.concatenate(
-            (tmp_array, padding)  # Pad it so that it has 8 bits
-        )
-        value = np.packbits(
-            padded_tmp_arr,
-            bitorder="little",  # Pack it back into a byte, little-endianess is an arbitraty choice and the code could be adapted
-        )
-
-        output_array = np.concatenate(
-            (output_array, value)  # Put the restored data into an array
-        )
-
-    return output_array
-
-
+'''
+Encode the signal x into a file called filename using num_bits per sample.
+x must be integer-valued and num_bits should be an integer smaller than 8.
+'''
 def write_encoded_file(x, num_bits, filename):
     compressed = compact_bytes(x, num_bits)
     compressed.tofile(filename)
     return compressed
 
-
+'''
+Read a signal x from a file called filename using num_bits per sample.
+The returned numpy array x has dtype=np.uint8 and num_bits should be an integer smaller than 8.
+'''
 def read_encoded_file(filename, num_bits):
     compressed = np.fromfile(filename, dtype=np.uint8, count=-1)
     uncompressed = decompact_bytes(compressed, num_bits)
     return uncompressed
 
 
-def write_encoded_file_old(x, num_bits, filename):
-    compressed = compact_bytes_old(x, num_bits)
-    compressed.tofile(filename)
-    return compressed
+'''
+Test methods.
+'''
+def main():
+    filename = 'test.bin'
+    #define 3 tests below
+    #x = np.array([0, 1, 2, 3, 4, 5, 6, 10, 11, 15, 15, 15], dtype=np.int64)
+    #num_bits = 8
+    #x = np.array([3, 2, 1, 0, 3, 2, 1, 3], dtype=np.int64)
+    #num_bits = 2
+    x = np.array([1, 1, 1], dtype=np.int64)
+    num_bits = 3
+    write_encoded_file(x, num_bits, filename)
 
+    x_recovered = read_encoded_file(filename, num_bits)
+    print("Original x", x)
+    print("Reconstructed x", x_recovered)
+    print("Maximum error =", np.max(x-x_recovered))
 
-def read_encoded_file_old(filename, num_bits):
-    compressed = np.fromfile(filename, dtype=np.uint8, count=-1)
-    uncompressed = decompact_bytes_old(compressed, num_bits)
-    return uncompressed
+if __name__ == "__main__":
+    # use it for testing
+    main()
