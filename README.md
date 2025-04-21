@@ -1,31 +1,63 @@
 # lasse-py
-Python code used at LASSE / UFPA projects concerning signal processing, machine learning, digital communications, etc.
 
-## Installation for users
+`lasse-py` is a Python library used at LASSE / UFPA for digital signal processing and quantization research, developed by the LASSE group to support simulation and analysis of modern communication systems.
+ audio, dsp, io (input / output), statistics, stochastic (processes), transforms (DCT, Fourier, etc) and util.
 
-Make sure your Python environment has all dependencies using:
+`lasse-py` provides a modular set of tools for scalar quantization, bit-level processing, and signal modeling — making it ideal for academic research, prototyping, and 6G experimental platforms.
 
-conda install --file requirements.txt
+## Installation for users (not developers)
 
 If you do not have an environment yet, it is a good idea to follow the hints at https://github.com/lasseufpa/python_template and install one.
 
+Go to the folder in which the `lasse-py` Python library was installed.
+
+Make sure your Python environment has all dependencies using conda or similar software. For instance, for conda:
+
+conda install --file requirements.txt
+
+Then install the `lasse-py` library using
+
+``python setup.py install``
+
 ## Guidelines for developers
+
+Then `lasse-py` library uses isort, black, etc., and was created using the template at
+https://github.com/lasseufpa/python_template.
+
+#### Use PYTHONPATH if you are editing the code
+
+If you installed using
+``python setup.py install``
+after each code modification, you will have to reinstall using the same command to update the code.
+
+Hence, when changing the code, it is more convenient to set the environment variable PYTHONPATH to find the code.
+For instance, when using Windows' cmd:
+
+``set PATH=c:\mylib\lasse-py``
+
+in case the folder lasse is located at c:\mylib\lasse-py\lasse.
 
 ### Install tools for commiting code
 
-TO-DO IMPROVE HERE
+Before doing git commit, you need to locally check whether your code is compliant, otherwise github may block the commit.
 
+For instance, using conda, you may install
+``conda install -c conda-forge isort flake8 click``
+and complement with pip:
+``pip install pre-commit black``
+
+More information at 
 https://guicommits.com/organize-python-code-like-a-pro/
 
 ### To update the requirements.txt file 
 
 We use:
 
-pip install pipreqs
+``pip install pipreqs``
 
 And from the project folder:
 
-pipreqs .
+``pipreqs .``
 
 (which will parse the files and save a new requirements.txt. You may move it if the file already exists)
 
