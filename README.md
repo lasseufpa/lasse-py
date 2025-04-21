@@ -1,9 +1,10 @@
 # lasse-py
 
 `lasse-py` is a Python library used at LASSE / UFPA for digital signal processing and quantization research, developed by the LASSE group to support simulation and analysis of modern communication systems.
- audio, dsp, io (input / output), statistics, stochastic (processes), transforms (DCT, Fourier, etc) and util.
 
 `lasse-py` provides a modular set of tools for scalar quantization, bit-level processing, and signal modeling — making it ideal for academic research, prototyping, and 6G experimental platforms.
+
+Some of the packages are: audio, dsp, io (input / output), statistics, stochastic (processes), transforms (DCT, Fourier, etc) and util, in which one can find related modules.
 
 ## Installation for users (not developers)
 
