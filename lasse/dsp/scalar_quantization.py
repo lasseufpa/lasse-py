@@ -121,6 +121,10 @@ class UniformQuantizer:
         x_i[x_i > self.xi_max_index] = self.xi_max_index  # impose maximum
         x_q = x_i * self.delta + self.xminq  # quantized and decoded output
         return x_q, x_i.astype(np.int64)
+    
+    def dequantize_numpy_array(self, x_i):
+        x_q = x_i.astype(np.float32) * self.delta + self.xminq  # decoded output
+        return x_q
 
     # AK-TODO: merge quantize_real_scalar and quantize_numpy_array
     def quantize_real_scalar(self, x):
