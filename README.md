@@ -6,7 +6,7 @@
 
 Some of the packages are: audio, dsp, io (input / output), statistics, stochastic (processes), transforms (DCT, Fourier, etc) and util, in which one can find related modules.
 
-## Installation for users (not developers)
+## 1) Installation for users (not developers)
 
 If you do not have an environment yet, it is a good idea to follow the hints at https://github.com/lasseufpa/python_template and install one.
 
@@ -20,12 +20,12 @@ Then install the `lasse-py` library using
 
 ``python setup.py install``
 
-## Guidelines for developers
+## 2) Guidelines for developers
 
-Then `lasse-py` library uses isort, black, etc., and was created using the template at
-https://github.com/lasseufpa/python_template.
+The `lasse-py` library uses isort, black, etc., and was created using the template at
+https://github.com/lasseufpa/python_template. Hence, follow the instructions at https://github.com/lasseufpa/python_template to create an environment and development platform (with VS Code, etc.) and then be able to commit changes to `lasse-py`.
 
-#### Use PYTHONPATH if you are editing the code
+#### 2.1) Use PYTHONPATH if you are editing the code
 
 If you installed using
 ``python setup.py install``
@@ -38,9 +38,9 @@ For instance, when using Windows' cmd:
 
 in case the folder lasse is located at c:\mylib\lasse-py\lasse.
 
-### Install tools for commiting code
+### 2.2) Install tools for commiting code
 
-Before doing git commit, you need to locally check whether your code is compliant, otherwise github may block the commit.
+If you did not follow the instructions at https://github.com/lasseufpa/python_template, before doing git commit, you need to locally check whether your code is compliant, otherwise github may block the commit.
 
 For instance, using conda, you may install
 ``conda install -c conda-forge isort flake8 click``
@@ -50,7 +50,7 @@ and complement with pip:
 More information at 
 https://guicommits.com/organize-python-code-like-a-pro/
 
-### To update the requirements.txt file 
+### 2.3) To update the requirements.txt file 
 
 We use:
 
@@ -62,7 +62,7 @@ And from the project folder:
 
 (which will parse the files and save a new requirements.txt. You may move it if the file already exists)
 
-## Extra information and packages we adopt
+## 3) Extra information and packages we adopt
 
 https://github.com/librosa/librosa - audio and music analysis
 
