@@ -23,12 +23,30 @@ Then install the `lasse-py` library using
 ## 2) Guidelines for developers
 
 The `lasse-py` library uses isort, black, etc., and was created using the template at
-https://github.com/lasseufpa/python_template. Hence, follow the instructions at https://github.com/lasseufpa/python_template to create an environment and development platform (with VS Code, etc.) and then be able to commit changes to `lasse-py`.
+https://github.com/lasseufpa/python_template. 
+
+Github was configured to execute the command below each time there is a commit:
+
+``conda run pre-commit run --all-files``
+
+and before using git commit you should run the same command locally and check if all stages indicate `passed`, as follows
+
+``
+seed isort known_third_party.............................................Passed
+isort....................................................................Passed
+black....................................................................Passed
+Flake8...................................................................Passed
+pyright..................................................................Passed
+``
+
+Hence, follow the instructions at https://github.com/lasseufpa/python_template to create an environment and development platform (with VS Code, etc.) and then be able to commit changes to `lasse-py`.
 
 #### 2.1) Use PYTHONPATH if you are editing the code
 
 If you installed using
+
 ``python setup.py install``
+
 after each code modification, you will have to reinstall using the same command to update the code.
 
 Hence, when changing the code, it is more convenient to set the environment variable PYTHONPATH to find the code.
@@ -43,8 +61,11 @@ in case the folder lasse is located at c:\mylib\lasse-py\lasse.
 If you did not follow the instructions at https://github.com/lasseufpa/python_template, before doing git commit, you need to locally check whether your code is compliant, otherwise github may block the commit.
 
 For instance, using conda, you may install
+
 ``conda install -c conda-forge isort flake8 click``
+
 and complement with pip:
+
 ``pip install pre-commit black``
 
 More information at 
