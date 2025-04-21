@@ -1,6 +1,6 @@
-'''
+"""
 Methods to quantize and dequantize.
-'''
+"""
 import matplotlib.pyplot as plt
 import numpy as np
 import pylab as pl
@@ -45,7 +45,7 @@ def ak_quantizer(input, delta, b):
 
 
 def int_to_bitarray2_numpy_array(xi, num_of_bits):
-    '''
+    """
     Converts a 1D array of integers into cumulative binary masks of length 2**num_of_bits.
 
     This is not a bitwise representation, but rather a "soft histogram"-like encoding
@@ -63,17 +63,17 @@ def int_to_bitarray2_numpy_array(xi, num_of_bits):
         xi = np.array([3, 5]) and num_of_bits = 3 (→ vector length = 8)
         → array([[1, 1, 1, 0, 0, 0, 0, 0],
                  [1, 1, 1, 1, 1, 0, 0, 0]], dtype=uint8)
-    '''
+    """
     N = len(xi)  # assume it's 1D
     num_levels = 2 ** num_of_bits
     out = np.zeros((N, num_levels), dtype=np.uint8)
     for i in range(N):
-        out[i, 0: xi[i]] = 1
+        out[i, 0 : xi[i]] = 1
     return out
 
 
 def int_to_bitarray_numpy_array(xi, num_of_bits):
-    '''
+    """
     Converts a 1D array of integers to their binary representations.
 
     Args:
@@ -88,7 +88,7 @@ def int_to_bitarray_numpy_array(xi, num_of_bits):
         xi = np.array([3, 5])
         → array([[0, 1, 1],
                  [1, 0, 1]], dtype=uint8)
-    '''
+    """
     N = len(xi)  # assume it's 1D
     out = np.zeros((N, num_of_bits), dtype=np.uint8)
     for i in range(N):
@@ -97,7 +97,7 @@ def int_to_bitarray_numpy_array(xi, num_of_bits):
 
 
 def int_to_bitarray(n, num_of_bits):
-    '''
+    """
     Converts an integer to a binary representation in the form of a NumPy array.
 
     Args:
@@ -110,7 +110,7 @@ def int_to_bitarray(n, num_of_bits):
 
     Example:
         int_to_bitarray(5, 4) → array([0, 1, 0, 1])
-    '''
+    """
     out = np.zeros((num_of_bits,), dtype=np.uint8)
     mask = 1
     for i in range(num_of_bits):
@@ -332,7 +332,8 @@ if __name__ == "__main__":
     xmax = 2
     forceZeroLevel = True
     uniformQuantizer = UniformQuantizer(
-        num_bits, xmin, xmax, forceZeroLevel=forceZeroLevel)
+        num_bits, xmin, xmax, forceZeroLevel=forceZeroLevel
+    )
     print(uniformQuantizer.__repr__())
 
     # quantize scalar
