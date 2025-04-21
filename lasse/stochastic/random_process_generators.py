@@ -67,7 +67,7 @@ def get_realization_process_number_2(num_samples=100):
 
 
 def generate_process_realizations(
-    method_to_generate_realization,
+    index_of_generation_method,
     num_realizations=100,
     num_samples_per_realization=100,
 ):
@@ -80,6 +80,14 @@ def generate_process_realizations(
     :return all realizations of the random process as a numpy array of dimension
             num_realizations x  num_samples_per_realization
     """
+
+    if index_of_generation_method == 1:
+        method_to_generate_realization = get_realization_process_number_1
+    elif index_of_generation_method == 2:
+        method_to_generate_realization = get_realization_process_number_2
+    else:
+        raise Exception("Methods are restricted to number 1 or 2!")
+
     # initialize with zeros
     all_realizations = np.zeros((num_realizations, num_samples_per_realization))
     for m in range(num_realizations):  # generate all realizations
