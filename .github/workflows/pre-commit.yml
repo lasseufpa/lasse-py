@@ -15,5 +15,6 @@ jobs:
         with:
           python-version: "3.10"
       - run: $CONDA/bin/conda env create -f env.yml
+      - run: $CONDA/bin/conda run -n lasse-py pip install -r requirements.txt
       - run: $CONDA/bin/conda run -n lasse-py pre-commit install
       - run: $CONDA/bin/conda run -n lasse-py pre-commit run --all-files
