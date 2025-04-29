@@ -94,6 +94,15 @@ def test_xcorr():
     print(Rxy)
     print(lags)
 
+def rectpuls(x,w = 1):
+    # TODO: use warnings rather then prints
+    if not isinstance(x, np.ndarray):
+        print("x must be a NumPy array.")
+    # pulse with duration [-0.5,0.5)
+    y = 1.0*(x>0.5*w) - 1.0*(x<=-0.5*w)
+    y = np.array(y,dtype = x.dtype)
+    return y
+
 
 if __name__ == "__main__":
     test_xcorr()
