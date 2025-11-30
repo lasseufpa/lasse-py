@@ -60,7 +60,7 @@ def spectrum_magnitude(x, Fs, show_plot=False, remove_mean=False):
         # plt.semilogy(f, X)
         plt.plot(f, X)
         plt.xlabel("frequency (Hz)")
-        plt.ylabel("magnitude |X(f)| (Volts)")
+        plt.ylabel("magnitude |X(f)| (Volts/Hz)")
         plt.title("Spectrum")
         plt.show()
 
@@ -76,7 +76,7 @@ def power_spectral_density(x, Fs, show_plot=False):
     # nfft=None, detrend='constant', return_onesided=True, scaling='density',
     # axis=-1, average='mean')
 
-    f, X_psd = welch(x, fs=Fs, window="hann")
+    f, X_psd = welch(x, fs=Fs, window="hann", noverlap=16)
 
     if show_plot:
         plt.semilogy(f, X_psd)
@@ -86,3 +86,22 @@ def power_spectral_density(x, Fs, show_plot=False):
         plt.show()
 
     return X_psd, f
+
+
+if __name__ == "__main__":
+    # simple test
+    Fs = 1000  # sampling frequency
+    T = 1 / Fs  # sampling period
+    L = 1500  # length of signal
+    t = np.arange(0, L) * T  # time vector
+
+    # Create a signal containing a 50 Hz sinusoid of amplitude 0.7
+    # and a 120 Hz sinusoid of amplitude 1.
+    S = 0.7 * np.sin(2 * np.pi * 50 * t) + np.sin(2 * np.pi * 120 * t)
+
+    # Add some noise to the signal
+    X = S + 2 * np.random.randn(len(t))
+
+    # Compute and plot the spectrum
+    spectrum_magnitude(X, Fs, show_plot=True)
+    power_spectral_density(X, Fs, show_plot=True)
