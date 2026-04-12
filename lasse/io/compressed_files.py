@@ -39,13 +39,32 @@ integer values and bits are:
 header=1  |  suffix of 010=2     1   7 |         3  prefix of 010=2
 
 @authors Eduardo Filho, 2023
-Reviewed by Aldebaro, 2025
+Reviewed by Aldebaro, 2026
 """
 
 import numpy as np
+import struct
 
 
-def compact_bytes(input_array, num_bits) -> np.ndarray:
+def compact_bytes(
+    input_array: np.ndarray[np.uint64], num_bits: int
+) -> np.ndarray[np.uint8]:
+    """
+    Compact input_array into a bit array using num_bits per sample, where
+    num_bits should be an integer smaller than 8.
+
+    Parameters
+    ----------
+    input_array : np.ndarray[np.uint64]
+        The input array containing the data to be compacted.
+    num_bits : int
+        The number of bits per sample in the input array.
+
+    Returns
+    -------
+    np.ndarray[np.uint8]
+        The compacted array containing the original data.
+    """
     if num_bits >= 8:
         raise ValueError("This function is meant to work with less than 8 bits!")
 
@@ -86,24 +105,41 @@ num_bits should be an integer smaller than 8.
 """
 
 
-def slow_compact_bytes(input_array, num_bits) -> np.ndarray:
+def slow_compact_bytes(
+    input_array: np.ndarray, num_bits: int
+) -> np.ndarray:
+    """
+    Compact input_array into a bit array using num_bits per sample, where
+    num_bits should be an integer smaller than 8.
+
+    Parameters
+    ----------
+    input_array : np.ndarray
+        The input array containing the data to be compacted.
+    num_bits : int
+        The number of bits per sample in the input array.
+
+    Returns
+    -------
+    np.ndarray
+        The compacted array containing the original data.
+    """
     if num_bits >= 8:
         raise ValueError("This function is meant to work with less than 8 bits!")
 
-    min = np.min(input_array)
-    max = np.max(input_array)
-    if min < 0 or max > 2 ** num_bits:
+    min_val = np.min(input_array)
+    max_val = np.max(input_array)
+    if min_val < 0 or max_val > 2 ** num_bits - 1:
         max_allowed = 2 ** num_bits - 1
         raise ValueError(
             "The input must be in the range [0, "
             + str(max_allowed)
-            + "] but I found min, max =",
-            min,
-            max,
+            + "] but I found min, max = ",
+            min_val,
+            max_val,
         )
 
     if not np.issubdtype(input_array.dtype, np.integer):
-        print("Found values: ", input_array)
         raise ValueError("Input must be integer!")
 
     input_arr_len = len(input_array)
@@ -128,18 +164,37 @@ def slow_compact_bytes(input_array, num_bits) -> np.ndarray:
 
     return_array = np.insert(output_array, obj=0, values=trailing_samples_floor)
 
-    return np.array(return_array)  # Needed to cast to np.array to pass pyright
+    # Needed to cast to np.array to pass pyright
+    return np.array(return_array, dtype=np.uint8)
 
 
-def decompact_bytes(input_array, num_bits) -> np.ndarray:
+def decompact_bytes(
+    input_array: np.ndarray, num_bits: int
+) -> np.ndarray:
+    """
+    Decompress input_array into a uint8 array using num_bits per sample, where
+    num_bits should be an integer smaller than 8.
+
+    Parameters
+    ----------
+    input_array : np.ndarray
+        The input array containing the data to be decompressed.
+    num_bits : int
+        The number of bits per sample in the input array.
+
+    Returns
+    -------
+    np.ndarray
+        The decompressed array containing the original data.
+    """
     if num_bits >= 8:
         raise ValueError("This function is meant to work with less than 8 bits!")
 
-    num_discrepant_zeros = input_array[0]
+    num_discrepant_zeros = int(input_array[0])
     data_array = input_array[1:]
 
     # Convert byte data to bit array
-    bit_array = np.unpackbits(data_array, bitorder="little")
+    bit_array = np.unpackbits(data_array, bitorder="little").astype(np.uint8)
 
     # Calculate original number of samples
     total_bits = len(bit_array)
@@ -184,7 +239,7 @@ def slow_decompact_bytes(input_array, num_bits) -> np.ndarray:
     # separate the bits which represent that number, pack them back
     # into a byte ( uint8 ) and then put the number into a new array
     for i in range(output_arr_len):
-        tmp_array = bit_array[num_bits * i : num_bits * (i + 1)]
+        tmp_array = bit_array[num_bits * i: num_bits * (i + 1)]
         value = np.packbits(tmp_array, bitorder="little")
 
         output_array = np.concatenate((output_array, value))
@@ -198,9 +253,17 @@ x must be integer-valued and num_bits should be an integer smaller than 8.
 """
 
 
-def write_encoded_file(x, num_bits, filename):
+def write_encoded_file(x: np.ndarray, num_bits: int, filename: str, header: bytes = None) -> np.ndarray:
+    """
+    Encode the signal x into a file called filename using num_bits per sample.
+    x must be integer-valued and num_bits should be an integer smaller than 8.
+    """
     compressed = compact_bytes(x, num_bits)
-    compressed.tofile(filename)
+    with open(filename, "wb") as f:
+        if header is not None:
+            # ---- HEADER ----
+            f.write(header)
+        compressed.tofile(f)
     return compressed
 
 
@@ -210,10 +273,23 @@ The returned numpy array x has dtype=np.uint8 and num_bits should be an integer 
 """
 
 
-def read_encoded_file(filename, num_bits):
-    compressed = np.fromfile(filename, dtype=np.uint8, count=-1)
+def read_encoded_file(
+    filename: str, num_bits: int,
+    num_header_bytes: int = 0
+) -> np.ndarray:
+    """
+    Read a signal x from a file called filename using num_bits per sample.
+    The returned numpy array x has dtype=np.uint8 and num_bits should be an integer smaller than 8.
+    """
+    with open(filename, "rb") as f:
+        if num_header_bytes > 0:
+            header = f.read(num_header_bytes)
+        compressed = np.fromfile(f, dtype=np.uint8, count=-1)
     uncompressed = decompact_bytes(compressed, num_bits)
-    return uncompressed
+    if num_header_bytes > 0:
+        return uncompressed, header
+    else:
+        return uncompressed
 
 
 """
@@ -233,6 +309,27 @@ def main():
     write_encoded_file(x, num_bits, filename)
 
     x_recovered = read_encoded_file(filename, num_bits)
+    print("Original x", x)
+    print("Reconstructed x", x_recovered)
+    print("Maximum error =", np.max(x - x_recovered))
+
+    print("\n\nExample with header")
+    magic = b"QB1\0"          # file signature
+    version = 1
+    length = len(x)
+
+    # Create header using struct:
+    # https://docs.python.org/3/library/struct.html
+    header = struct.pack(
+        "<4sBBI",  # little-endian
+        magic,
+        version,
+        num_bits,
+        length
+    )
+    write_encoded_file(x, num_bits, filename, header)
+    x_recovered, recovered_header = read_encoded_file(filename, num_bits, len(header))
+    magic, version, num_bits, length = struct.unpack("<4sBBI", recovered_header)
     print("Original x", x)
     print("Reconstructed x", x_recovered)
     print("Maximum error =", np.max(x - x_recovered))
