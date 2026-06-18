@@ -31,7 +31,7 @@ class BitUtils:
         num_levels = 2 ** num_of_bits
         out = np.zeros((N, num_levels), dtype=np.uint8)
         for i in range(N):
-            out[i, 0: xi[i]] = 1
+            out[i, 0 : xi[i]] = 1
         return out
 
     @staticmethod
@@ -314,12 +314,14 @@ class UniformQuantizer(Quantizer):
         if force_midtread:
             if xmin > 0 or xmax < 0:
                 raise Exception(
-                    "Cannot force zero level if range [xmin,  xmax] does not include zero.")
+                    "Cannot force zero level if range [xmin,  xmax] does not include zero."
+                )
 
         if force_midtread:
             # Mid-tread quantizer (zero level included)
             delta, xminq = UniformQuantizer.design_midtread_asymmetric_auto(
-                num_bits, xmin, xmax)
+                num_bits, xmin, xmax
+            )
             # quantizerLevels = indices * delta
         else:
             # Mid-rise quantizer (no zero level)
@@ -614,7 +616,7 @@ class NonUniformQuantizer(Quantizer):
 
         return x_q, indices.astype(np.int64)
 
-    def _dequantize_implementation(self, x_i):
+    def _dequantize_implementation(self, xi):
         """
         Dequantize input data using the non-uniform quantizer.
 
@@ -624,8 +626,8 @@ class NonUniformQuantizer(Quantizer):
         Returns:
             np.ndarray: the dequantized data
         """
-        x_i = np.asarray(x_i)
-        return self.quantizerLevels[x_i]
+        xi = np.asarray(xi)
+        return self.quantizerLevels[xi]
 
     def get_parameters(self) -> tuple[np.ndarray, np.ndarray, int]:
         """
@@ -648,8 +650,12 @@ def test_conversion_to_bits():
     z = BitUtils.int_to_bitarray_numpy_array(y, num_bits)
     print("Conventional binary representation with ", num_bits, "bits:\n", z)
     z2 = BitUtils.int_to_bitarray2_numpy_array(y, num_bits + 1)
-    print("Alternative representation where the 1's indicate the number, using ",
-          num_bits + 1, "bits:\n", z2)
+    print(
+        "Alternative representation where the 1's indicate the number, using ",
+        num_bits + 1,
+        "bits:\n",
+        z2,
+    )
 
 
 def test_uniform_quantizer():
@@ -660,9 +666,10 @@ def test_uniform_quantizer():
     force_midtread = True
 
     delta, xminq = UniformQuantizer.design_quantizer(
-        num_bits, xmin, xmax, force_midtread=force_midtread)
+        num_bits, xmin, xmax, force_midtread=force_midtread
+    )
 
-    uniformQuantizer = UniformQuantizer(num_bits, delta, xminq)
+    uniformQuantizer = UniformQuantizer(num_bits, float(delta), float(xminq))
     print(uniformQuantizer.__repr__())
 
     # quantize scalar
@@ -679,13 +686,14 @@ def test_uniform_quantizer():
 
     # Second example of uniform quantizer: Gaussian source
     x = np.random.randn(10000)
-    xmin = np.mean(x) - 3. * np.std(x)  # bad choice: xmin = np.min(x)
-    xmax = np.mean(x) + 3. * np.std(x)  # bad choice: xmax = np.max(x)
+    xmin = np.mean(x) - 3.0 * np.std(x)  # bad choice: xmin = np.min(x)
+    xmax = np.mean(x) + 3.0 * np.std(x)  # bad choice: xmax = np.max(x)
     num_bits = 3  # to compare with non-uniform quantizer
     delta, xminq = UniformQuantizer.design_quantizer(
-        num_bits, xmin, xmax, force_midtread=True)
+        num_bits, xmin, xmax, force_midtread=True
+    )
 
-    uniformQuantizer = UniformQuantizer(num_bits, delta, xminq)
+    uniformQuantizer = UniformQuantizer(num_bits, float(delta), float(xminq))
     print("Uniform quantizer:\n", uniformQuantizer)
     # quantize array,
     xq, xi = uniformQuantizer.quantize(x)

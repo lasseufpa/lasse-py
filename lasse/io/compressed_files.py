@@ -42,13 +42,16 @@ header=1  |  suffix of 010=2     1   7 |         3  prefix of 010=2
 Reviewed by Aldebaro, 2026
 """
 
-import numpy as np
 import struct
+from typing import Any
+
+import numpy as np
+import numpy.typing as npt
 
 
 def compact_bytes(
-    input_array: np.ndarray[np.uint64], num_bits: int
-) -> np.ndarray[np.uint8]:
+    input_array: npt.NDArray[np.uint64], num_bits: int
+) -> npt.NDArray[np.uint8]:
     """
     Compact input_array into a bit array using num_bits per sample, where
     num_bits should be an integer smaller than 8.
@@ -96,7 +99,7 @@ def compact_bytes(
         bit_array = np.pad(bit_array, (0, trailing_bits), mode="constant")
 
     packed = np.packbits(bit_array, bitorder="little")
-    return np.insert(packed, 0, trailing_samples)
+    return np.asarray(np.insert(packed, 0, trailing_samples), dtype=np.uint8)
 
 
 """
@@ -105,9 +108,7 @@ num_bits should be an integer smaller than 8.
 """
 
 
-def slow_compact_bytes(
-    input_array: np.ndarray, num_bits: int
-) -> np.ndarray:
+def slow_compact_bytes(input_array: np.ndarray, num_bits: int) -> np.ndarray:
     """
     Compact input_array into a bit array using num_bits per sample, where
     num_bits should be an integer smaller than 8.
@@ -168,9 +169,7 @@ def slow_compact_bytes(
     return np.array(return_array, dtype=np.uint8)
 
 
-def decompact_bytes(
-    input_array: np.ndarray, num_bits: int
-) -> np.ndarray:
+def decompact_bytes(input_array: np.ndarray, num_bits: int) -> np.ndarray:
     """
     Decompress input_array into a uint8 array using num_bits per sample, where
     num_bits should be an integer smaller than 8.
@@ -239,7 +238,7 @@ def slow_decompact_bytes(input_array, num_bits) -> np.ndarray:
     # separate the bits which represent that number, pack them back
     # into a byte ( uint8 ) and then put the number into a new array
     for i in range(output_arr_len):
-        tmp_array = bit_array[num_bits * i: num_bits * (i + 1)]
+        tmp_array = bit_array[num_bits * i : num_bits * (i + 1)]
         value = np.packbits(tmp_array, bitorder="little")
 
         output_array = np.concatenate((output_array, value))
@@ -253,12 +252,17 @@ x must be integer-valued and num_bits should be an integer smaller than 8.
 """
 
 
-def write_encoded_file(x: np.ndarray, num_bits: int, filename: str, header: bytes = None) -> np.ndarray:
+def write_encoded_file(
+    x: npt.NDArray[np.integer[Any]],
+    num_bits: int,
+    filename: str,
+    header: bytes | None = None,
+) -> npt.NDArray[np.uint8]:
     """
     Encode the signal x into a file called filename using num_bits per sample.
     x must be integer-valued and num_bits should be an integer smaller than 8.
     """
-    compressed = compact_bytes(x, num_bits)
+    compressed = compact_bytes(np.asarray(x, dtype=np.uint64), num_bits)
     with open(filename, "wb") as f:
         if header is not None:
             # ---- HEADER ----
@@ -274,13 +278,13 @@ The returned numpy array x has dtype=np.uint8 and num_bits should be an integer 
 
 
 def read_encoded_file(
-    filename: str, num_bits: int,
-    num_header_bytes: int = 0
-) -> np.ndarray:
+    filename: str, num_bits: int, num_header_bytes: int = 0
+) -> npt.NDArray[np.uint8] | tuple[npt.NDArray[np.uint8], bytes]:
     """
     Read a signal x from a file called filename using num_bits per sample.
     The returned numpy array x has dtype=np.uint8 and num_bits should be an integer smaller than 8.
     """
+    header = b""
     with open(filename, "rb") as f:
         if num_header_bytes > 0:
             header = f.read(num_header_bytes)
@@ -308,27 +312,25 @@ def main():
     # num_bits = 3
     write_encoded_file(x, num_bits, filename)
 
-    x_recovered = read_encoded_file(filename, num_bits)
+    read_result = read_encoded_file(filename, num_bits)
+    x_recovered = read_result[0] if isinstance(read_result, tuple) else read_result
     print("Original x", x)
     print("Reconstructed x", x_recovered)
     print("Maximum error =", np.max(x - x_recovered))
 
     print("\n\nExample with header")
-    magic = b"QB1\0"          # file signature
+    magic = b"QB1\0"  # file signature
     version = 1
     length = len(x)
 
     # Create header using struct:
     # https://docs.python.org/3/library/struct.html
-    header = struct.pack(
-        "<4sBBI",  # little-endian
-        magic,
-        version,
-        num_bits,
-        length
-    )
+    header = struct.pack("<4sBBI", magic, version, num_bits, length)  # little-endian
     write_encoded_file(x, num_bits, filename, header)
-    x_recovered, recovered_header = read_encoded_file(filename, num_bits, len(header))
+    read_result_with_header = read_encoded_file(filename, num_bits, len(header))
+    if not isinstance(read_result_with_header, tuple):
+        raise RuntimeError("Expected header bytes when num_header_bytes > 0")
+    x_recovered, recovered_header = read_result_with_header
     magic, version, num_bits, length = struct.unpack("<4sBBI", recovered_header)
     print("Original x", x)
     print("Reconstructed x", x_recovered)

@@ -4,10 +4,8 @@ Analyze a signal using Fourier-based frequency domain representations
 
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.signal import welch
-import numpy as np
-import matplotlib.pyplot as plt
 from scipy import signal
+from scipy.signal import welch
 
 
 def discretized_frequency_axis(Fs, N):
@@ -186,7 +184,7 @@ if __name__ == "__main__":
     power_spectral_density(x, Fs, show_plot=True)
 
 
-def ak_specgram(signal_data, fs=None, window='hamming', noverlap=None, nfft=None):
+def ak_specgram(signal_data, fs=None, window="hamming", noverlap=None, nfft=None):
     """
     Compute spectrogram of a signal using short-time Fourier transform (STFT).
 
@@ -246,7 +244,7 @@ def ak_specgram(signal_data, fs=None, window='hamming', noverlap=None, nfft=None
     - Precise time axis calculation - Adjusts time positioning by adding half the window length for better alignment
     - Filter bandwidth control - Calculates optimal window length from suggested bandwidth
     - Better window calculation - Uses next power of 2 for FFT speed optimization
-    - dB conversion - Uses 20*log10 for proper power spectrum representation    
+    - dB conversion - Uses 20*log10 for proper power spectrum representation
     """
     signal_data = np.asarray(signal_data)
 
@@ -278,15 +276,24 @@ def ak_specgram(signal_data, fs=None, window='hamming', noverlap=None, nfft=None
         nperseg=nperseg,
         noverlap=noverlap,
         nfft=nfft,
-        scaling='density'
+        scaling="density",
     )
 
     return Sxx, f, t
 
 
-def plot_spectrogram(signal_data, fs, title='Spectrogram', window='hamming',
-                     noverlap=None, nfft=None, vmin=None, vmax=None,
-                     cmap='viridis', figsize=(12, 6)):
+def plot_spectrogram(
+    signal_data,
+    fs,
+    title="Spectrogram",
+    window="hamming",
+    noverlap=None,
+    nfft=None,
+    vmin=None,
+    vmax=None,
+    cmap="viridis",
+    figsize=(12, 6),
+):
     """
     Compute and visualize a spectrogram with professional formatting.
 
@@ -331,8 +338,9 @@ def plot_spectrogram(signal_data, fs, title='Spectrogram', window='hamming',
     Nyquist frequency (fs/2). Colorbar shows power scale.
     """
     # Compute spectrogram
-    Sxx, f, t = ak_specgram(signal_data, fs=fs, window=window,
-                            noverlap=noverlap, nfft=nfft)
+    Sxx, f, t = ak_specgram(
+        signal_data, fs=fs, window=window, noverlap=noverlap, nfft=nfft
+    )
 
     # Convert to dB scale
     Sxx_dB = 10 * np.log10(Sxx + 1e-10)
@@ -341,20 +349,19 @@ def plot_spectrogram(signal_data, fs, title='Spectrogram', window='hamming',
     fig, ax = plt.subplots(figsize=figsize)
 
     # Plot spectrogram
-    im = ax.pcolormesh(t, f, Sxx_dB, shading='gouraud', cmap=cmap,
-                       vmin=vmin, vmax=vmax)
+    im = ax.pcolormesh(t, f, Sxx_dB, shading="gouraud", cmap=cmap, vmin=vmin, vmax=vmax)
 
     # Labels and title
-    ax.set_ylabel('Frequency (Hz)')
-    ax.set_xlabel('Time (s)')
+    ax.set_ylabel("Frequency (Hz)")
+    ax.set_xlabel("Time (s)")
     ax.set_title(title)
 
     # Add colorbar
     cbar = fig.colorbar(im, ax=ax)
-    cbar.set_label('Power (dB)')
+    cbar.set_label("Power (dB)")
 
     # Set reasonable frequency limits
-    ax.set_ylim([0, fs / 2])
+    ax.set_ylim(0, fs / 2)
 
     plt.tight_layout()
 
