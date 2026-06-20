@@ -179,9 +179,7 @@ def apply_fixed_point_filter_int8(
     x_i: npt.NDArray[np.int8],
     acc_frac_bits: int = 3,
     mode: Literal["floor", "round", "trunc"] = "round",
-) -> tuple[
-    npt.NDArray[np.float64], npt.NDArray[np.int8], np.ndarray, np.ndarray, np.ndarray
-]:
+) -> tuple[npt.NDArray[np.int8], npt.NDArray[np.float64]]:
     """
     This version is more specialized in comparison to the more
     general apply_fixed_point_filter() method. It assumes all inputs and coefficients are already quantized to int8 fixed-point representation,
@@ -244,7 +242,7 @@ def apply_fixed_point_filter_int8(
 
     y = int8_fixed_to_float(y_i, acc_frac_bits)  # convert back to float
 
-    return y, y_i, x_i, B_i, A_i
+    return y_i, y
 
 
 def main_comparison_float_vs_fixed_point() -> tuple[
@@ -311,7 +309,7 @@ def main_comparison_float_vs_fixed_point() -> tuple[
     Bq_int8 = np.asarray(Bq * (2 ** frac_bits), dtype=np.int8)
     Aq_int8 = np.asarray(Aq * (2 ** frac_bits), dtype=np.int8)
     xq_int8 = np.asarray(xq * (2 ** frac_bits), dtype=np.int8)
-    y_int8, _, _, _, _ = apply_fixed_point_filter_int8(
+    y_int8, _ = apply_fixed_point_filter_int8(
         Bq_int8, Aq_int8, xq_int8, acc_frac_bits=frac_bits, mode="round"
     )
 
