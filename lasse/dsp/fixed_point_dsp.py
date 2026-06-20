@@ -463,7 +463,7 @@ def does_FIR_have_symmetry(Bz: npt.ArrayLike, atol: float = 1e-12) -> bool:
     is_antisymmetric = np.allclose(Bz, -Bz[::-1], atol=atol)
 
     has_symmetry = False
-    fir_type = None
+    fir_type = "None"
     if is_symmetric:
         fir_type = "Type I" if L % 2 == 1 else "Type II"
         has_symmetry = True
@@ -490,12 +490,9 @@ class RealTimeCheck:
     macs_per_sample: int
     max_sampling_rate_hz: float
     """
-    Class that verifies whether my DSP hardware has the power to process in real-time a given difference
-    equation taking in account the time Tmac for a MPY + ADD or SUB, and the order of the IIR. Give support
-    to symmetric FIR in case the coefficients have symmetry and the number of multipliers is half.
+    Class that verifies whether my DSP hardware has the power to process in real-time a given difference equation taking in account the time Tmac for a MPY + ADD or SUB, and the order of the IIR. Give support to symmetric FIR in case the coefficients have symmetry and the number of multipliers is half.
     Actions:
-    count MACs per output sample, compare required processing time with the sample period, and handle IIR,
-    generic FIR, and symmetric FIR.
+    count MACs per output sample, compare required processing time with the sample period, and handle IIR, generic FIR, and symmetric FIR.
     """
 
     def __str__(self) -> str:
