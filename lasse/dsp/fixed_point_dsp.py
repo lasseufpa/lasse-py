@@ -1,27 +1,30 @@
-'''
+"""
 This module implements fixed-point IIR filtering and quantization of filter coefficients.
-It includes functions to: 
+It includes functions to:
 - Quantize filter coefficients and input signal to fixed-point representation.
 - Apply the fixed-point IIR filter to an input signal.
 - Compare the frequency responses of unquantized and quantized filters.
-'''
+"""
 
+import math
+from typing import Any, Literal, cast
+
+import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
-from scipy.signal import butter, lfilter, freqz
-import matplotlib.pyplot as plt
-from typing import Literal
-
-# from ak_fixed_point_quantization import fixed_point_conversion, quantize_array
+from scipy.signal import butter, freqz, lfilter
 
 
 def saturate_int16(x: float | int | np.integer | np.floating) -> np.int16:
-    """Clamp a numeric value to the signed int16 range and return int16."""
+    """
+    Clamp a numeric value to the signed int16 range and return int16.
+    """
     return np.int16(np.clip(x, -32768, 32767))
 
 
 def saturate_int8(x: float | int | np.integer | np.floating) -> np.int8:
-    """Clamp a numeric value to the signed int8 range and return int8."""
+    """
+    Clamp a numeric value to the signed int8 range and return int8."""
     return np.int8(np.clip(x, -128, 127))
 
 
@@ -33,11 +36,12 @@ def int8_fixed_to_float(x_i: npt.ArrayLike, frac_bits: int) -> npt.NDArray[np.fl
 
 
 def compare_frequency_responses(
-        B: npt.ArrayLike,
-        A: npt.ArrayLike,
-        Bq: npt.ArrayLike,
-        Aq: npt.ArrayLike,
-        worN: int = 1024) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    B: npt.ArrayLike,
+    A: npt.ArrayLike,
+    Bq: npt.ArrayLike,
+    Aq: npt.ArrayLike,
+    worN: int = 1024,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Compare frequency responses of unquantized and quantized IIR filters.
 
@@ -46,8 +50,13 @@ def compare_frequency_responses(
     worN   : number of frequency samples
     """
 
-    w, H = freqz(B, A, worN=worN)
-    _, Hq = freqz(Bq, Aq, worN=worN)
+    b_arr = np.asarray(B, dtype=np.float64)
+    a_arr = np.asarray(A, dtype=np.float64)
+    bq_arr = np.asarray(Bq, dtype=np.float64)
+    aq_arr = np.asarray(Aq, dtype=np.float64)
+
+    w, H = freqz(cast(Any, b_arr), cast(Any, a_arr), worN=worN)
+    _, Hq = freqz(cast(Any, bq_arr), cast(Any, aq_arr), worN=worN)
 
     f = w / np.pi  # normalized frequency, where 1 corresponds to Nyquist
 
@@ -88,43 +97,54 @@ def compare_frequency_responses(
 
 
 def apply_fixed_point_filter(
-        B: npt.ArrayLike,
-        A: npt.ArrayLike,
-        x: npt.ArrayLike,
-        total_bits: int = 8,
-        frac_bits: int = 3,
-        acc_bits: int = 16,
-        acc_frac_bits: int = 6,
-        mode: Literal["floor", "round", "trunc"] = "round") -> np.ndarray:
-    '''
-    Apply fixed-point IIR filter to input signal x using quantized
+    B: npt.ArrayLike,
+    A: npt.ArrayLike,
+    x: npt.ArrayLike,
+    total_bits: int = 8,
+    frac_bits: int = 3,
+    acc_bits: int = 16,
+    acc_frac_bits: int = 6,
+    mode: Literal["floor", "round", "trunc"] = "round",
+) -> np.ndarray:
+    """
+    Apply fixed-point filtering to input signal x using quantized
     coefficients B and A.
     It assumes an accumulator with acc_bits total bits and acc_frac_bits
-    fractional bits to prevent overflow during intermediate calculations.
-    '''
+    fractional bits to aim at preventing overflow during intermediate calculations.
+    """
 
-    M = len(B) - 1
-    N = len(A) - 1
+    b_arr = np.asarray(B, dtype=np.float64)
+    a_arr = np.asarray(A, dtype=np.float64)
+    x_arr = np.asarray(x, dtype=np.float64)
 
-    y = np.zeros_like(x)
+    M = len(b_arr) - 1
+    N = len(a_arr) - 1
 
-    for n in range(0, len(x)):
+    if a_arr[0] != 1:
+        raise ValueError(
+            "A[0] must be 1 for normalized IIR filters and also for FIR filters. Consider normalizing the filter coefficients."
+        )
+
+    y = np.zeros_like(x_arr)
+
+    for n in range(0, len(x_arr)):
         acc = 0.0
 
-        for i in range(M + 1):
+        for i in range(M + 1):  # from B[0] to B[M]
             if n - i >= 0:
-                acc += B[i] * x[n - i]
+                acc += b_arr[i] * x_arr[n - i]
                 _, _, acc = fixed_point_conversion(
-                    acc, acc_bits, acc_frac_bits, mode="round")
+                    acc, acc_bits, acc_frac_bits, mode="round"
+                )
 
-        for i in range(1, N + 1):
+        for i in range(1, N + 1):  # from A[1] to A[N]
             if n - i >= 0:
-                acc -= A[i] * y[n - i]
+                acc -= a_arr[i] * y[n - i]
                 _, _, acc = fixed_point_conversion(
-                    acc, acc_bits, acc_frac_bits, mode="round")
+                    acc, acc_bits, acc_frac_bits, mode="round"
+                )
 
-        _, _, y[n] = fixed_point_conversion(
-            acc, total_bits, frac_bits, mode="round")
+        _, _, y[n] = fixed_point_conversion(acc, total_bits, frac_bits, mode="round")
 
     return y
 
@@ -142,35 +162,47 @@ def mac_int16(x1: np.int8, x2: np.int8, acc: np.int16) -> np.int16:
 
 
 def apply_fixed_point_filter_int8(
-        B: npt.ArrayLike,
-        A: npt.ArrayLike,
-        x: npt.ArrayLike,
-        frac_bits: int = 3,
-        mode: Literal["floor", "round", "trunc"] = "round"
+    B: npt.ArrayLike,
+    A: npt.ArrayLike,
+    x: npt.ArrayLike,
+    frac_bits: int = 3,
+    mode: Literal["floor", "round", "trunc"] = "round",
 ) -> tuple[
-        npt.NDArray[np.float64],
-        npt.NDArray[np.int8],
-        np.ndarray,
-        np.ndarray,
-        np.ndarray]:
+    npt.NDArray[np.float64], npt.NDArray[np.int8], np.ndarray, np.ndarray, np.ndarray
+]:
     """
-    Fixed-point IIR filter using:
+    This version is more specialized in comparison to the more
+    general apply_fixed_point_filter. It implements a
+    fixed-point IIR filter using:
       - int8 for x, B, A and y
       - int16 for accumulator
-
+    The code also assumes that the filter is normalized such that A[0] = 1, which is common for IIR filters and also applies to FIR filters.
+    Saturation is implemented to mimic what is performed by a DSP chip.
     All multiplications generate Q(2*frac_bits).
     Before storing y[n] as int8, the accumulator is shifted right by frac_bits.
     """
+    b_arr = np.asarray(B, dtype=np.float64)
+    a_arr = np.asarray(A, dtype=np.float64)
+    x_arr = np.asarray(x, dtype=np.float64)
+
+    if a_arr[0] != 1:
+        raise ValueError(
+            "A[0] must be 1 for normalized IIR filters and also for FIR filters. Consider normalizing the filter coefficients."
+        )
     # quantize filter coefficients to int8 fixed-point representation
-    B_q, B_i = quantize_array(B, 8, frac_bits, mode=mode)
-    A_q, A_i = quantize_array(A, 8, frac_bits, mode=mode)
+    B_q, B_i = quantize_array(b_arr, 8, frac_bits, mode=mode)
+    A_q, A_i = quantize_array(a_arr, 8, frac_bits, mode=mode)
+    # fix the quantization of A[0] to ensure it is exactly 1.0 in fixed-point representation, which is important for the filter's behavior and stability
+    A_q[0] = 1.0
+    A_i[0] = int(2 ** frac_bits)
+
     # quantize input signal to int8 fixed-point representation
-    x_q, x_i = quantize_array(x, 8, frac_bits, mode=mode)
+    x_q, x_i = quantize_array(x_arr, 8, frac_bits, mode=mode)
 
     M = len(B_i) - 1  # number of numerator coefficients
     N = len(A_i) - 1  # number of denominator coefficients
 
-    y_i = np.zeros(len(x_i), dtype=np.int8)  # pre-allocate space for int8 output
+    y_i = np.zeros(len(x_i), dtype=np.int8)  # pre-allocate space for int8
 
     for n in range(len(x_i)):
         acc = np.int16(0)  # initialize int16 accumulator as zero
@@ -193,14 +225,12 @@ def apply_fixed_point_filter_int8(
     return y, y_i, x_i, B_i, A_i
 
 
-def figs_systems_roundoff_errors() -> tuple[
-        np.ndarray,
-        np.ndarray,
-        np.ndarray,
-        np.ndarray,
-        np.ndarray,
-        np.ndarray]:
-    """Generate plots and outputs to illustrate fixed-point roundoff effects."""
+def main_comparison_float_vs_fixed_point() -> tuple[
+    np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray
+]:
+    """
+    Generate plots and outputs to illustrate fixed-point roundoff effects.
+    """
     np.random.seed(0)
 
     N = 300
@@ -208,7 +238,12 @@ def figs_systems_roundoff_errors() -> tuple[
     # x = 32 * np.random.randn(N)
 
     M = 4
-    B, A = butter(M, 0.3)
+    butter_out = butter(M, 0.3)
+    if not isinstance(butter_out, tuple) or len(butter_out) != 2:
+        raise RuntimeError("scipy.signal.butter did not return (b, a)")
+    b_tmp, a_tmp = butter_out
+    B = np.asarray(b_tmp, dtype=np.float64)
+    A = np.asarray(a_tmp, dtype=np.float64)
 
     # 8-bit Q4.3 variables and coefficients
     total_bits = 8
@@ -219,35 +254,41 @@ def figs_systems_roundoff_errors() -> tuple[
     acc_frac_bits = 2 * frac_bits
 
     xq, xi = quantize_array(x, total_bits, frac_bits, mode="round")
-    Bq, Bi = quantize_array(
-        B, total_bits, frac_bits, mode="round")
-    Aq, Ai = quantize_array(
-        A, total_bits, frac_bits, mode="round")
+    Bq, Bi = quantize_array(B, total_bits, frac_bits, mode="round")
+    Aq, Ai = quantize_array(A, total_bits, frac_bits, mode="round")
 
     if np.sum(np.abs(Bq)) == 0 or np.sum(np.abs(Aq)) == 0:
-        raise RuntimeError(
-            "Quantized filter has B(z) or A(z) only with zero values.")
+        raise RuntimeError("Quantized filter has B(z) or A(z) only with zero values.")
 
     w, H, Hq = compare_frequency_responses(B, A, Bq, Aq)
 
-    yq_my = apply_fixed_point_filter(Bq, Aq, xq,
-                                     total_bits=total_bits,
-                                     frac_bits=frac_bits,
-                                     acc_bits=acc_bits,
-                                     acc_frac_bits=acc_frac_bits,
-                                     mode="round")
+    yq_my = apply_fixed_point_filter(
+        Bq,
+        Aq,
+        xq,
+        total_bits=total_bits,
+        frac_bits=frac_bits,
+        acc_bits=acc_bits,
+        acc_frac_bits=acc_frac_bits,
+        mode="round",
+    )
 
-    y_my = apply_fixed_point_filter(B, A, x,
-                                    total_bits=64,
-                                    frac_bits=40,
-                                    acc_bits=64,
-                                    acc_frac_bits=40,
-                                    mode="round")
+    y_my = apply_fixed_point_filter(
+        B,
+        A,
+        x,
+        total_bits=64,
+        frac_bits=40,
+        acc_bits=64,
+        acc_frac_bits=40,
+        mode="round",
+    )
 
-    y_scipy = lfilter(B, A, x)
+    y_scipy = np.asarray(lfilter(B, A, x), dtype=np.float64)
 
     y_int8, _, _, _, _ = apply_fixed_point_filter_int8(
-        Bq, Aq, xq, frac_bits=frac_bits, mode="round")
+        Bq, Aq, xq, frac_bits=frac_bits, mode="round"
+    )
 
     n = np.arange(N)
 
@@ -285,11 +326,12 @@ def fixed_point_conversion(
         "trunc" -> truncate toward zero, e.g., trunc(-3.8) = -3, trunc(3.8) = 3
     """
     # make sure x is a scalar and float
-    x = np.asarray(x)
-    if x.size != 1:
+    x_array = np.asarray(x, dtype=np.float64)
+    if x_array.size != 1:
         raise ValueError(
-            "fixed_point_conversion expects a scalar. Pass one coefficient at a time.")
-    x = float(x.item())
+            "fixed_point_conversion expects a scalar. Pass one coefficient at a time."
+        )
+    x = float(x_array.reshape(-1)[0])
 
     Delta = 2 ** (-b_f)  # quantization step size
 
@@ -310,11 +352,15 @@ def fixed_point_conversion(
 
     if x_i < min_int:  # check minimum representable value
         x_i = min_int
-        print("Warning! Consider increasing b_i")
+        print(
+            "Warning! Consider increasing number of bits to represent the integer part (b-1-b_f)"
+        )
 
     if x_i > max_int:  # check maximum representable value
         x_i = max_int
-        print("Warning! Consider increasing b_i")
+        print(
+            "Warning! Consider increasing number of bits to represent the integer part (b-1-b_f)"
+        )
 
     x_q = x_i * Delta  # quantized value scaled back to original range
 
@@ -352,16 +398,18 @@ def quantize_array(
     coefficients_quantized : ndarray
         Quantized coefficients.
      Note: For IIR filters, A[0] is typically 1 for normalized filters, so it may not need quantization.
-     """
+    """
     x_array = np.atleast_1d(np.asarray(x, dtype=np.float64))
     x_quantized: list[float] = []
     x_as_integers: list[int] = []
-    for value in x_array:
+    for value in np.asarray(x_array, dtype=np.float64).reshape(-1).tolist():
         _, x_i, x_q = fixed_point_conversion(value, b, b_f, mode=mode)
         x_quantized.append(x_q)
         x_as_integers.append(x_i)
 
-    return np.array(x_quantized, dtype=np.float64), np.array(x_as_integers, dtype=np.int64)
+    return np.array(x_quantized, dtype=np.float64), np.array(
+        x_as_integers, dtype=np.int64
+    )
 
 
 def main_quantization_examples():
@@ -370,8 +418,21 @@ def main_quantization_examples():
     b_f_values = [4, 7, 4, 3]
     b_values = [8, 8, 8, 16]
     for x, b, b_f in zip(input_values, b_values, b_f_values):
+<<<<<<< HEAD
         print("\nInput: x =", x, ", b =", b, ", b_f =",
               b_f, ", # bits for integer part m =", b - 1 - b_f)
+=======
+        print(
+            "\nInput: x =",
+            x,
+            ", b =",
+            b,
+            ", b_f =",
+            b_f,
+            ", # bits for integer part m =",
+            b - 1 - b_f,
+        )
+>>>>>>> c5704327cb8e0def1680227b2ada2f7ced66809a
         x_b, x_i, x_q = fixed_point_conversion(x, b, b_f)
 
         print("x_b =", x_b)
@@ -384,6 +445,6 @@ def main_quantization_examples():
 if __name__ == "__main__":
     main_quantization_examples()
 
-    yq_my, y_my, y_scipy, Bq, Aq, xq = figs_systems_roundoff_errors()
+    yq_my, y_my, y_scipy, Bq, Aq, xq = main_comparison_float_vs_fixed_point()
     print("Quantized B =", Bq)
     print("Quantized A =", Aq)

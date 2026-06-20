@@ -17,7 +17,7 @@ def ak_fftmtx(N, option=1):
     # Ah=ak_fftmtx(4,3); x=[1:4]'; Ah*x, fft(x)
     """
     W = np.exp(-1j * 2 * np.pi / N)  # twiddle factor W_N
-    Ah = np.zeros((N, N), dtype=np.complex_)  # pre-allocate space
+    Ah = np.zeros((N, N), dtype=np.complex128)  # pre-allocate space
     for n in range(N):  # create the matrix with twiddle factors
         for k in range(N):
             Ah[k, n] = W ** (n * k)
@@ -26,10 +26,10 @@ def ak_fftmtx(N, option=1):
     if option == 1:  # orthonormal (also called unitary)
         Ah = Ah / np.sqrt(N)
         A = np.conj(Ah)
-    if option == 2:  # read X(k) in Volts in case x(n) is in Volts
+    elif option == 2:  # read X(k) in Volts in case x(n) is in Volts
         A = np.conj(Ah)
         Ah = Ah / N
-    if option == 3:  # as in Matlab/Octave: Ah = Ah
+    elif option == 3:  # as in Matlab/Octave: Ah = Ah
         A = np.conj(Ah) / N
     else:
         raise Exception("Invalid option value: " + str(option))
