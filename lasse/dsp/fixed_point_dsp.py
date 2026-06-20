@@ -7,6 +7,8 @@ It includes functions to:
 """
 
 import math
+from dataclasses import dataclass
+from math import ceil
 from typing import Any, Literal, cast
 
 import matplotlib.pyplot as plt
@@ -115,9 +117,9 @@ def apply_fixed_point_filter(
     It does not quantize the input signal.
     """
 
-    b_arr = np.asarray(B, dtype=np.float64)
-    a_arr = np.asarray(A, dtype=np.float64)
-    x_arr = np.asarray(x, dtype=np.float64)
+    b_arr = np.atleast_1d(np.asarray(B, dtype=np.float64))
+    a_arr = np.atleast_1d(np.asarray(A, dtype=np.float64))
+    x_arr = np.atleast_1d(np.asarray(x, dtype=np.float64))
 
     M = len(b_arr) - 1
     N = len(a_arr) - 1
@@ -435,6 +437,187 @@ def quantize_array(
     )
 
 
+def does_FIR_have_symmetry(Bz: npt.ArrayLike, atol: float = 1e-12) -> bool:
+    """
+    Check if an FIR filter has symmetric coefficients.
+    It prints the type:
+    Type I   : symmetric,     odd length
+    Type II  : symmetric,     even length
+    Type III : antisymmetric, odd length
+    Type IV  : antisymmetric, even length
+
+    Returns
+    -------
+    bool
+        True if the FIR filter has symmetry (either symmetric or antisymmetric), False otherwise.
+
+    """
+    Bz = np.asarray(Bz, dtype=np.float64)
+
+    if Bz.ndim != 1:
+        raise ValueError("Bz must be a one-dimensional array.")
+
+    L = len(Bz)
+
+    is_symmetric = np.allclose(Bz, Bz[::-1], atol=atol)
+    is_antisymmetric = np.allclose(Bz, -Bz[::-1], atol=atol)
+
+    has_symmetry = False
+    fir_type = None
+    if is_symmetric:
+        fir_type = "Type I" if L % 2 == 1 else "Type II"
+        has_symmetry = True
+
+    if is_antisymmetric:
+        fir_type = "Type III" if L % 2 == 1 else "Type IV"
+        has_symmetry = True
+
+    if has_symmetry:
+        print(f"FIR filter has symmetry of type: {fir_type}")
+    else:
+        print("FIR filter does not have symmetry.")
+
+    return has_symmetry
+
+
+@dataclass
+class RealTimeCheck:
+    is_real_time: bool
+    sample_period_s: float
+    processing_time_s: float
+    margin_s: float
+    margin_percent: float
+    macs_per_sample: int
+    max_sampling_rate_hz: float
+    """
+    Class that verifies whether my DSP hardware has the power to process in real-time a given difference
+    equation taking in account the time Tmac for a MPY + ADD or SUB, and the order of the IIR. Give support
+    to symmetric FIR in case the coefficients have symmetry and the number of multipliers is half.
+    Actions:
+    count MACs per output sample, compare required processing time with the sample period, and handle IIR,
+    generic FIR, and symmetric FIR.
+    """
+
+    def __str__(self) -> str:
+        status = "YES ✓" if self.is_real_time else "NO ✗"
+        utilization_percent = 100 * self.processing_time_s / self.sample_period_s
+        return (
+            "=================================================\n"
+            "Real-Time DSP Feasibility Analysis\n"
+            "=================================================\n"
+            f"Can process in real time?     : {status}\n"
+            f"MAC operations per sample     : {self.macs_per_sample}\n"
+            f"Sample period Ts              : {self.sample_period_s:.3e} s\n"
+            f"Processing time per sample    : {self.processing_time_s:.3e} s\n"
+            f"DSP utilization               : {utilization_percent:.1f} %\n"
+            f"Timing margin                 : {self.margin_s:.3e} s\n"
+            f"Timing margin                 : {self.margin_percent:.1f} %\n"
+            f"Maximum sampling frequency    : {self.max_sampling_rate_hz:.3f} Hz\n"
+            "================================================="
+        )
+
+
+def check_realtime_difference_equation(
+    Fs: float,
+    Tmac: float,
+    num_b_coeffs: int,
+    num_a_coeffs: int = 1,
+    is_iir: bool = False,
+    symmetric_fir: bool = False,
+    include_output_write: bool = False,
+    overhead_time: float = 0.0,
+) -> RealTimeCheck:
+    """
+    Check whether a DSP processor can implement a difference equation in real time.
+
+    Parameters
+    ----------
+    Fs : float
+        Sampling frequency in Hz.
+    Tmac : float
+        Time in seconds required for one multiply-accumulate operation,
+        i.e., one multiplication plus one addition or subtraction.
+    num_b_coeffs : int
+        Number of numerator coefficients b[0], ..., b[M].
+        For an FIR filter, this is the number of FIR taps.
+    num_a_coeffs : int
+        Number of denominator coefficients a[0], ..., a[N].
+        For an FIR filter, use num_a_coeffs = 1.
+    is_iir : bool
+        True for IIR filters. False for FIR filters.
+    symmetric_fir : bool
+        True if FIR coefficients have symmetry and the implementation exploits it.
+        Only applies when is_iir is False.
+    include_output_write : bool
+        If True, adds one extra operation to account for output scaling/storage.
+        This is crude but useful for conservative estimates.
+    overhead_time : float
+        Extra fixed processing time per sample in seconds, e.g., loop overhead,
+        memory access penalty, saturation, scaling, interrupt overhead, etc.
+
+    Returns
+    -------
+    RealTimeCheck
+        Summary of the real-time feasibility test.
+    """
+
+    if Fs <= 0:
+        raise ValueError("Fs must be positive.")
+    if Tmac <= 0:
+        raise ValueError("Tmac must be positive.")
+    if num_b_coeffs <= 0:
+        raise ValueError("num_b_coeffs must be positive.")
+    if num_a_coeffs <= 0:
+        raise ValueError("num_a_coeffs must be positive.")
+
+    Ts = 1.0 / Fs
+
+    if is_iir:
+        # Difference equation:
+        # y[n] = sum_{k=0}^{M} b[k] x[n-k]
+        #        - sum_{k=1}^{N} a[k] y[n-k]
+        #
+        # Number of numerator MACs = len(B)
+        # Number of feedback MACs = len(A) - 1, because a[0] is not used.
+        macs_per_sample = num_b_coeffs + (num_a_coeffs - 1)
+
+    else:
+        if symmetric_fir:
+            # For linear-phase symmetric FIR:
+            # h[k] = h[L-1-k]
+            #
+            # Pair samples first:
+            # y[n] = sum h[k] * (x[n-k] + x[n-(L-1-k)])
+            #
+            # Multipliers are approximately half.
+            # For odd length, the center coefficient needs one extra multiplier.
+            macs_per_sample = ceil(num_b_coeffs / 2)
+        else:
+            macs_per_sample = num_b_coeffs
+
+    if include_output_write:
+        macs_per_sample += 1
+
+    processing_time = macs_per_sample * Tmac + overhead_time
+
+    margin = Ts - processing_time
+    margin_percent = 100.0 * margin / Ts
+
+    is_real_time = processing_time <= Ts
+
+    max_sampling_rate = 1.0 / processing_time if processing_time > 0 else float("inf")
+
+    return RealTimeCheck(
+        is_real_time=is_real_time,
+        sample_period_s=Ts,
+        processing_time_s=processing_time,
+        margin_s=margin,
+        margin_percent=margin_percent,
+        macs_per_sample=macs_per_sample,
+        max_sampling_rate_hz=max_sampling_rate,
+    )
+
+
 def main_quantization_examples():
     # Example
     input_values = [5.0625, 0.6328125, -7.45, 2804.6542]
@@ -462,8 +645,19 @@ def main_quantization_examples():
 
 
 if __name__ == "__main__":
+    result = check_realtime_difference_equation(
+        Fs=48_000,
+        Tmac=100e-9,
+        num_b_coeffs=51,
+        is_iir=False,
+        symmetric_fir=True,
+    )
+    print(result)
+
     main_quantization_examples()
 
     yq_my, y_my, y_scipy, Bq, Aq, xq = main_comparison_float_vs_fixed_point()
     print("Quantized B =", Bq)
     print("Quantized A =", Aq)
+
+    does_FIR_have_symmetry(Bq)
