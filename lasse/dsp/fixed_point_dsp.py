@@ -129,6 +129,18 @@ def apply_fixed_point_filter(
     return y
 
 
+def mac_int16(x1: np.int8, x2: np.int8, acc: np.int16) -> np.int16:
+    """
+    Multiply-accumulate operation for fixed-point filtering.
+    Avoid getting wrap-around before we can saturate.
+    """
+    # model 8-bit multiplier producing product stored in 16-bit accumulator:
+    prod = np.int16(x1) * np.int16(x2)
+    # temporarilly use int32 to avoids overflow before saturation:
+    new_acc_value = saturate_int16(np.int32(acc) + np.int32(prod))
+    return new_acc_value
+
+
 def apply_fixed_point_filter_int8(
         B: npt.ArrayLike,
         A: npt.ArrayLike,
@@ -155,31 +167,28 @@ def apply_fixed_point_filter_int8(
     # quantize input signal to int8 fixed-point representation
     x_q, x_i = quantize_array(x, 8, frac_bits, mode=mode)
 
-    M = len(B_i) - 1
-    N = len(A_i) - 1
+    M = len(B_i) - 1  # number of numerator coefficients
+    N = len(A_i) - 1  # number of denominator coefficients
 
-    y_i = np.zeros(len(x_i), dtype=np.int8)
+    y_i = np.zeros(len(x_i), dtype=np.int8)  # pre-allocate space for int8 output
 
     for n in range(len(x_i)):
-        acc = np.int16(0)
+        acc = np.int16(0)  # initialize int16 accumulator as zero
 
-        for k in range(M + 1):
-            if n - k >= 0:
-                prod = np.int16(B_i[k]) * np.int16(x_i[n - k])
-                acc = saturate_int16(np.int32(acc) + np.int32(prod))
+        for k in range(M + 1):  # implement numerator part of the filter
+            if n - k >= 0:  # skip negative indices during transient response
+                acc = mac_int16(B_i[k], x_i[n - k], acc)
 
-        for k in range(1, N + 1):
-            if n - k >= 0:
-                prod = np.int16(A_i[k]) * np.int16(y_i[n - k])
-                acc = saturate_int16(np.int32(acc) - np.int32(prod))
+        for k in range(1, N + 1):  # implement denominator part of the filter
+            if n - k >= 0:  # skip negative indices during transient response
+                acc = mac_int16(A_i[k], y_i[n - k], acc)
 
-        # acc is in Q(2*frac_bits)
-        # y_i must be in Q(frac_bits)
+        # acc is in Q(2*frac_bits) but y_i must be in Q(frac_bits)
         acc_shifted = acc >> frac_bits
 
-        y_i[n] = saturate_int8(acc_shifted)
+        y_i[n] = saturate_int8(acc_shifted)  # save output as int8
 
-    y = int8_fixed_to_float(y_i, frac_bits)
+    y = int8_fixed_to_float(y_i, frac_bits)  # convert back to float
 
     return y, y_i, x_i, B_i, A_i
 
@@ -296,8 +305,8 @@ def fixed_point_conversion(
         raise ValueError("mode must be 'floor', 'round', or 'trunc'")
 
     # Scaled-integer range for signed fixed-point with 1 sign bit
-    min_int = -(2 ** (b-1))
-    max_int = (2 ** (b-1)) - 1
+    min_int = -(2 ** (b - 1))
+    max_int = (2 ** (b - 1)) - 1
 
     if x_i < min_int:  # check minimum representable value
         x_i = min_int
@@ -362,14 +371,14 @@ def main_quantization_examples():
     b_values = [8, 8, 8, 16]
     for x, b, b_f in zip(input_values, b_values, b_f_values):
         print("\nInput: x =", x, ", b =", b, ", b_f =",
-              b_f, ", # bits for integer part m =", b-1-b_f)
+              b_f, ", # bits for integer part m =", b - 1 - b_f)
         x_b, x_i, x_q = fixed_point_conversion(x, b, b_f)
 
         print("x_b =", x_b)
         print("x_i =", x_i)
         print("x_q =", x_q)
         print("x =", x)
-        print("error=x-x_q =", x-x_q)
+        print("error=x-x_q =", x - x_q)
 
 
 if __name__ == "__main__":
