@@ -108,7 +108,7 @@ def apply_fixed_point_filter(
 ) -> np.ndarray:
     """
     Apply fixed-point filtering to input signal x using quantized
-    coefficients B and A.
+    coefficients B and A. All these variables and intermediate results are quantized to fixed-point representation with total_bits and frac_bits.
     It assumes an accumulator with acc_bits total bits and acc_frac_bits
     fractional bits to aim at preventing overflow during intermediate calculations.
 
@@ -177,7 +177,7 @@ def apply_fixed_point_filter_int8(
     B_i: npt.NDArray[np.int8],
     A_i: npt.NDArray[np.int8],
     x_i: npt.NDArray[np.int8],
-    frac_bits: int = 3,
+    acc_frac_bits: int = 3,
     mode: Literal["floor", "round", "trunc"] = "round",
 ) -> tuple[
     npt.NDArray[np.float64], npt.NDArray[np.int8], np.ndarray, np.ndarray, np.ndarray
@@ -194,6 +194,7 @@ def apply_fixed_point_filter_int8(
     The internal filter state (filter memory) is also quantized to int8.
     All multiplications generate Q(2*frac_bits).
     Before storing y[n] as int8, the accumulator is shifted right by frac_bits.
+    This method assumes that A_i[0] is "1" and it is not used in the calculations.
     """
 
     print(" B_i.dtype:", B_i.dtype, "A_i.dtype:", A_i.dtype, "x_i.dtype:", x_i.dtype)
@@ -204,10 +205,6 @@ def apply_fixed_point_filter_int8(
     if x_i.dtype != np.int8:
         raise ValueError("x must be of type int8")
 
-    if A_i[0] != 2 ** frac_bits:
-        raise ValueError(
-            "A_i[0] must be equal to 2^frac_bits for normalized IIR filters and also for FIR filters. Consider normalizing the filter coefficients and quantizing again."
-        )
     M = len(B_i) - 1  # number of numerator coefficients
     N = len(A_i) - 1  # number of denominator coefficients
 
@@ -233,19 +230,19 @@ def apply_fixed_point_filter_int8(
         if mode == "round":
             # trying to round to nearest to avoid having negative outputs rounded differently from positive outputs.
             if acc >= 0:
-                acc_shifted = (acc + (1 << (frac_bits - 1))) >> frac_bits
+                acc_shifted = (acc + (1 << (acc_frac_bits - 1))) >> acc_frac_bits
             else:
-                acc_shifted = -((-acc + (1 << (frac_bits - 1))) >> frac_bits)
+                acc_shifted = -((-acc + (1 << (acc_frac_bits - 1))) >> acc_frac_bits)
         elif mode == "floor":
-            acc_shifted = acc >> frac_bits
+            acc_shifted = acc >> acc_frac_bits
         elif mode == "trunc":
-            acc_shifted = int(acc / (1 << frac_bits))
+            acc_shifted = int(acc / (1 << acc_frac_bits))
         else:
             raise ValueError(f"Unsupported mode: {mode}")
 
         y_i[n] = saturate_int8(acc_shifted)  # save output as int8
 
-    y = int8_fixed_to_float(y_i, frac_bits)  # convert back to float
+    y = int8_fixed_to_float(y_i, acc_frac_bits)  # convert back to float
 
     return y, y_i, x_i, B_i, A_i
 
@@ -315,7 +312,7 @@ def main_comparison_float_vs_fixed_point() -> tuple[
     Aq_int8 = np.asarray(Aq * (2 ** frac_bits), dtype=np.int8)
     xq_int8 = np.asarray(xq * (2 ** frac_bits), dtype=np.int8)
     y_int8, _, _, _, _ = apply_fixed_point_filter_int8(
-        Bq_int8, Aq_int8, xq_int8, frac_bits=frac_bits, mode="round"
+        Bq_int8, Aq_int8, xq_int8, acc_frac_bits=frac_bits, mode="round"
     )
 
     n = np.arange(N)
